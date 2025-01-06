@@ -99,9 +99,15 @@ def main():
     ddi_adj_path = '../data/ddi_A_final.pkl'
     device = torch.device('cuda:0')
 
+    # EHR 데이터 세트에서 구성된 drug-drug 인접 행렬
+    # (med_voc, med_voc)
     ehr_adj = dill.load(open(ehr_adj_path, 'rb'))
+    # DDI 데이터 세트에서 구성된 drug-drug 인접 행렬
+    # (med_voc, med_voc)
     ddi_adj = dill.load(open(ddi_adj_path, 'rb'))
+    # [[[환자1의 ICD9_CODE 인덱스], [환자1의 PRO_CODE 인덱스], [환자1의 NDC 인덱스]], [[], [] []], ... ]
     data = dill.load(open(data_path, 'rb'))
+    # ICD9_CODE 인덱스, NDC 인덱스, PRO_CODE 인덱스를 담은 object 저장
     voc = dill.load(open(voc_path, 'rb'))
     diag_voc, pro_voc, med_voc = voc['diag_voc'], voc['pro_voc'], voc['med_voc']
 
@@ -113,9 +119,9 @@ def main():
 
     EPOCH = 40
     LR = 0.0002
-    TEST = args.eval
-    Neg_Loss = args.ddi
-    DDI_IN_MEM = args.ddi
+    TEST = args.eval 
+    Neg_Loss = args.ddi # False
+    DDI_IN_MEM = args.ddi # False
     TARGET_DDI = 0.05
     T = 0.5
     decay_weight = 0.85
@@ -126,7 +132,9 @@ def main():
         model.load_state_dict(torch.load(open(resume_name, 'rb')))
     model.to(device=device)
 
+    # model의 전체 parameter수 출력
     print('parameters', get_n_params(model))
+    # 옵티마이저 Adam
     optimizer = Adam(list(model.parameters()), lr=LR)
 
     if TEST:
@@ -142,12 +150,17 @@ def main():
             prediction_loss_cnt = 0
             neg_loss_cnt = 0
             for step, input in enumerate(data_train):
+                # SUBJECT_ID가 동일한 환자들 중
+                # input -> [[환자1의 ICD9_CODE 인덱스], [환자1의 PRO_CODE 인덱스], [환자1의 NDC 인덱스]], [[환자2의 ICD9_CODE 인덱스], [환자2의 PRO_CODE 인덱스], [환자2의 NDC 인덱스]], ...]
                 for idx, adm in enumerate(input):
+                    # 환자 1, 환자 1,2, 환자 1,2,3, ...
                     seq_input = input[:idx+1]
                     loss1_target = np.zeros((1, voc_size[2]))
-                    loss1_target[:, adm[2]] = 1
+                    loss1_target[:, adm[2]] = 1 # 가장 마지막 열은 모두 1
+                    # (1, voc_size[2]) shape에 -1로 채워진 행렬
                     loss3_target = np.full((1, voc_size[2]), -1)
                     for idx, item in enumerate(adm[2]):
+                        # loss3_target은 NDC의 값으로 모두 채워짐
                         loss3_target[0][idx] = item
 
                     target_output1, batch_neg_loss = model(seq_input)
@@ -156,6 +169,7 @@ def main():
                     loss3 = F.multilabel_margin_loss(F.sigmoid(target_output1), torch.LongTensor(loss3_target).to(device))
                     if Neg_Loss:
                         target_output1 = F.sigmoid(target_output1).detach().cpu().numpy()[0]
+                        # sigmoid
                         target_output1[target_output1 >= 0.5] = 1
                         target_output1[target_output1 < 0.5] = 0
                         y_label = np.where(target_output1 == 1)[0]

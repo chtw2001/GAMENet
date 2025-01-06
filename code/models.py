@@ -11,6 +11,7 @@ Our model
 class GCN(nn.Module):
     def __init__(self, voc_size, emb_dim, adj, device=torch.device('cpu:0')):
         super(GCN, self).__init__()
+        # med_voc
         self.voc_size = voc_size
         self.emb_dim = emb_dim
         self.device = device
@@ -25,9 +26,15 @@ class GCN(nn.Module):
         self.gcn2 = GraphConvolution(emb_dim, emb_dim)
 
     def forward(self):
+        # self.gcn1의 가중치를 한번 적용하고 출력
+        # ReLU + Dropout
+        # self.gcn2의 가중치 적용 후 출력
+        
+        # node_embedding -> (voc_size, voc_size)
         node_embedding = self.gcn1(self.x, self.adj)
         node_embedding = F.relu(node_embedding)
         node_embedding = self.dropout(node_embedding)
+        # node_embedding -> (med_voc, 64)
         node_embedding = self.gcn2(node_embedding, self.adj)
         return node_embedding
 
@@ -41,6 +48,7 @@ class GCN(nn.Module):
         return mx
 
 class GAMENet(nn.Module):
+    # vocab_size -> (len(diag_voc.idx2word), len(pro_voc.idx2word), len(med_voc.idx2word))
     def __init__(self, vocab_size, ehr_adj, ddi_adj, emb_dim=64, device=torch.device('cpu:0'), ddi_in_memory=True):
         super(GAMENet, self).__init__()
         K = len(vocab_size)
@@ -50,6 +58,8 @@ class GAMENet(nn.Module):
         self.tensor_ddi_adj = torch.FloatTensor(ddi_adj).to(device)
         self.ddi_in_memory = ddi_in_memory
         self.embeddings = nn.ModuleList(
+            # 0 -> ICD9_CODE size
+            # 1 -> PRO_CODE size
             [nn.Embedding(vocab_size[i], emb_dim) for i in range(K-1)])
         self.dropout = nn.Dropout(p=0.4)
 
@@ -82,56 +92,80 @@ class GAMENet(nn.Module):
         def mean_embedding(embedding):
             return embedding.mean(dim=1).unsqueeze(dim=0)  # (1,1,dim)
         for adm in input:
+            # adm[0],[1]의 index에 해당하는 가중치 반환하고 (1, 1, 64) (배치, index, dim) index별 평균값을 구하고 배치 차원늘리기
+            # adm[0]은 ICD9_CODE 인덱스
+            # adm[1]은 PRO_CODE
             i1 = mean_embedding(self.dropout(self.embeddings[0](torch.LongTensor(adm[0]).unsqueeze(dim=0).to(self.device)))) # (1,1,dim)
             i2 = mean_embedding(self.dropout(self.embeddings[1](torch.LongTensor(adm[1]).unsqueeze(dim=0).to(self.device))))
             i1_seq.append(i1)
             i2_seq.append(i2)
+        # 모든 sequence 합치기
         i1_seq = torch.cat(i1_seq, dim=1) #(1,seq,dim)
         i2_seq = torch.cat(i2_seq, dim=1) #(1,seq,dim)
 
+        # o1 -> (1, seq, 2*dim)
         o1, h1 = self.encoders[0](
             i1_seq
         ) # o1:(1, seq, dim*2) hi:(1,1,dim*2)
         o2, h2 = self.encoders[1](
             i2_seq
         )
+        # (1, seq, 2*dim) -> cat(-1) -> (1, seq, 4*dim) -> sqeeze(0) -> (seq, 4*dim)
         patient_representations = torch.cat([o1, o2], dim=-1).squeeze(dim=0) # (seq, dim*4)
+        # 비선형성을 추가하고 4*dim을 dim 사이즈로 선형변환
+        # 과거 데이터도 포함된 것
         queries = self.query(patient_representations) # (seq, dim)
 
         # graph memory module
         '''I:generate current input'''
+        # 맨 마지막 행은 sequence의 모든 정보를 갖고 있음
         query = queries[-1:] # (1,dim)
 
         '''G:generate graph memory bank and insert history information'''
         if self.ddi_in_memory:
+            # ehr_adj으로 만들어진 가중치 - ddi_adj으로 만들어진 가중치*(학습되는 가중치)
             drug_memory = self.ehr_gcn() - self.ddi_gcn() * self.inter  # (size, dim)
         else:
+            # ehr데이터로 학습 된 embedding 출력
+            # 이전 정보를 담고있다고 가정
             drug_memory = self.ehr_gcn()
 
+        # 2번째 반복문 이상일 때 
         if len(input) > 1:
+            # 마지막 행 제거
             history_keys = queries[:(queries.size(0)-1)] # (seq-1, dim)
 
+            # (len(input)-1, med_size)
             history_values = np.zeros((len(input)-1, self.vocab_size[2]))
             for idx, adm in enumerate(input):
+                # len(input)이 2일 때 1번
+                # 3일 떄 2번 반복
                 if idx == len(input)-1:
                     break
+                # NDC가 정답 역할을 하는 것 같음
                 history_values[idx, adm[2]] = 1
             history_values = torch.FloatTensor(history_values).to(self.device) # (seq-1, size)
 
         '''O:read from global memory bank and dynamic memory bank'''
+        # (1, 64) * (64, voc_size) -> (1 * voc_size) 확률 출력
         key_weights1 = F.softmax(torch.mm(query, drug_memory.t()), dim=-1)  # (1, size)
+        # (1, voc_size) * (voc_size, 64) -> (1, 64)
         fact1 = torch.mm(key_weights1, drug_memory)  # (1, dim)
 
         if len(input) > 1:
+            # sequence 최종 출력과 과거 정보로 확률 출력
             visit_weight = F.softmax(torch.mm(query, history_keys.t())) # (1, seq-1)
             weighted_values = visit_weight.mm(history_values) # (1, size)
             fact2 = torch.mm(weighted_values, drug_memory) # (1, dim)
         else:
             fact2 = fact1
         '''R:convert O and predict'''
+        # (1, voc_size)
         output = self.output(torch.cat([query, fact1, fact2], dim=-1)) # (1, dim)
 
+        # self.training가 초기화 된 적이 없는데?
         if self.training:
+            # 확률 값으로 출력
             neg_pred_prob = F.sigmoid(output)
             neg_pred_prob = neg_pred_prob.t() * neg_pred_prob  # (voc_size, voc_size)
             batch_neg = neg_pred_prob.mul(self.tensor_ddi_adj).mean()

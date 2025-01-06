@@ -1,0 +1,10 @@
+records_final.pkl은 4차원(patient_idx, visit_idx, medical modal, medical id)의 입력 데이터로, 여기서 medical model은 진단, 시술, 약물로 구성된 3입니다.
+voc_final.pkl은 medical 단어를 해당 idx로 변환하는 어휘 목록입니다.
+ddi_A_final.pkl과 ehr_adj_final.pkl은 EHR과 DDI 데이터 세트에서 구성된 drug-drug 인접 행렬입니다.
+drug-atc.csv, ndc2atc_level4.csv, ndc2rxnorm_mapping.txt는 drug code 변환을 위한 매핑 파일입니다.
+
+Nearest는 이전 방문 시에 현재 방문 시 동일한 조합의 약물을 추천할 뿐입니다.
+로지스틱 회귀(LR)는 L2 정규화를 적용한 로지스틱 회귀입니다. 여기서는 입력 데이터를 원-핫 벡터의 합으로 표현합니다. 이진 연관성 기법을 사용하여 다중 레이블 출력을 처리합니다.
+Leap은 인스턴스 기반 약물 조합 추천 방법입니다.
+RETAIN은 영향력 있는 과거 방문과 해당 방문 내 중요한 임상 변수를 감지하는 2단계 신경 주의 모델을 기반으로 약물 조합의 순차적 예측을 제공할 수 있습니다.
+DMNC는 미분 가능한 신경 컴퓨터를 기반으로 하는 메모리 증강 신경망을 통한 약물 조합 예측의 최근 작업입니다.
