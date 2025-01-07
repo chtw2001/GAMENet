@@ -155,17 +155,20 @@ def main():
                 for idx, adm in enumerate(input):
                     # 환자 1, 환자 1,2, 환자 1,2,3, ...
                     seq_input = input[:idx+1]
+                    # NDC 인덱스에는 모두 1 나머지는 0
                     loss1_target = np.zeros((1, voc_size[2]))
                     loss1_target[:, adm[2]] = 1 # 가장 마지막 열은 모두 1
-                    # (1, voc_size[2]) shape에 -1로 채워진 행렬
+                    # NDC 인덱스에는 실제 인덱스 나머지는 -1
                     loss3_target = np.full((1, voc_size[2]), -1)
                     for idx, item in enumerate(adm[2]):
-                        # loss3_target은 NDC의 값으로 모두 채워짐
+                        # loss3_target은 NDC의 인덱스 값으로 모두 채워짐
                         loss3_target[0][idx] = item
 
+                    # (1, voc_size)
                     target_output1, batch_neg_loss = model(seq_input)
 
                     loss1 = F.binary_cross_entropy_with_logits(target_output1, torch.FloatTensor(loss1_target).to(device))
+                    # 1 - (정답으로 예측할 확률 - 다른 인덱스로 예측할 확률)을 모두 더해서 손실을 계산하는 함수
                     loss3 = F.multilabel_margin_loss(F.sigmoid(target_output1), torch.LongTensor(loss3_target).to(device))
                     if Neg_Loss:
                         target_output1 = F.sigmoid(target_output1).detach().cpu().numpy()[0]
@@ -173,11 +176,15 @@ def main():
                         target_output1[target_output1 >= 0.5] = 1
                         target_output1[target_output1 < 0.5] = 0
                         y_label = np.where(target_output1 == 1)[0]
+                        # 원본 인접 행렬 대비 얼만큼 맞추었는지 비율
                         current_ddi_rate = ddi_rate_score([[y_label]])
+                        # TARGET_DDI = 0.05
                         if current_ddi_rate <= TARGET_DDI:
                             loss = 0.9 * loss1 + 0.01 * loss3
                             prediction_loss_cnt += 1
                         else:
+                            # ddi rate는 목표치에 도달한 경우 확률에 따라 batch_neg_loss를 사용함
+                            # T = 0.5
                             rnd = np.exp((TARGET_DDI - current_ddi_rate)/T)
                             if np.random.rand(1) < rnd:
                                 loss = batch_neg_loss
@@ -196,6 +203,7 @@ def main():
 
                 llprint('\rTrain--Epoch: %d, Step: %d/%d, L_p cnt: %d, L_neg cnt: %d' % (epoch, step, len(data_train), prediction_loss_cnt, neg_loss_cnt))
             # annealing
+            # deacy_weight = 0.85
             T *= decay_weight
 
             ddi_rate, ja, prauc, avg_p, avg_r, avg_f1 = eval(model, data_eval, voc_size, epoch)

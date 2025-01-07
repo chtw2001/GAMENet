@@ -234,6 +234,7 @@ def ddi_rate_score(record, path='../data/ddi_A_final.pkl'):
                     if j <= i:
                         continue
                     all_cnt += 1
+                    # 원본 행렬에서도 관련이 있다면 dd_cnt += 1
                     if ddi_A[med_i, med_j] == 1 or ddi_A[med_j, med_i] == 1:
                         dd_cnt += 1
     if all_cnt == 0:

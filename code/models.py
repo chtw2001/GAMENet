@@ -164,6 +164,7 @@ class GAMENet(nn.Module):
         output = self.output(torch.cat([query, fact1, fact2], dim=-1)) # (1, dim)
 
         # self.training가 초기화 된 적이 없는데?
+        # model.train(), model.eval()로 자동으로 초기화 되는 듯 하다
         if self.training:
             # 확률 값으로 출력
             neg_pred_prob = F.sigmoid(output)

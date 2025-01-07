@@ -27,7 +27,19 @@ import numpy as np
 # print(embedding.shape)
 
 
-zero = np.zeros((0, 10))
-print(zero)
-zero = np.zeros((1, 10))
-print(zero)
+# zero = np.zeros((0, 10))
+# print(zero)
+# zero = np.zeros((1, 10))
+# print(zero)
+
+# loss1_target = np.zeros((1, 10))
+# loss1_target[:, [0,1,2,3,4]] = 1
+# loss3_target = np.full((1, 10), -1)
+# for idx, item in enumerate([0,1,2,3,4]):
+#     loss3_target[0][idx] = item
+
+# print(loss1_target)
+# print(loss3_target)
+
+ja, prauc, avg_p, avg_r, avg_f1 = [[] for _ in range(5)]
+print(ja, prauc, avg_p, avg_r, avg_f1)
