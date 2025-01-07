@@ -144,7 +144,9 @@ def multi_label_metric(y_gt, y_pred, y_prob):
         for b in range(y_gt.shape[0]):
             target = np.where(y_gt[b] == 1)[0]
             out_list = np.where(y_pred[b] == 1)[0]
+            # 교집합
             inter = set(out_list) & set(target)
+            # 합집합
             union = set(out_list) | set(target)
             jaccard_score = 0 if union == 0 else len(inter) / len(union)
             score.append(jaccard_score)
@@ -155,6 +157,7 @@ def multi_label_metric(y_gt, y_pred, y_prob):
         for b in range(y_gt.shape[0]):
             target = np.where(y_gt[b] == 1)[0]
             out_list = np.where(y_pred[b] == 1)[0]
+            # 교집합
             inter = set(out_list) & set(target)
             prc_score = 0 if len(out_list) == 0 else len(inter) / len(out_list)
             score.append(prc_score)

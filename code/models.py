@@ -154,6 +154,7 @@ class GAMENet(nn.Module):
 
         if len(input) > 1:
             # sequence 최종 출력과 과거 정보로 확률 출력
+            # 과거 방문 내역에 대해서 가중치로 사용됨
             visit_weight = F.softmax(torch.mm(query, history_keys.t())) # (1, seq-1)
             weighted_values = visit_weight.mm(history_values) # (1, size)
             fact2 = torch.mm(weighted_values, drug_memory) # (1, dim)

@@ -39,6 +39,7 @@ def eval(model, data_eval, voc_size, epoch):
     med_cnt = 0
     visit_cnt = 0
     for step, input in enumerate(data_eval):
+        # ground truth
         y_gt = []
         y_pred = []
         y_pred_prob = []
@@ -58,6 +59,7 @@ def eval(model, data_eval, voc_size, epoch):
             y_pred_tmp[y_pred_tmp<0.5] = 0
             y_pred.append(y_pred_tmp)
             y_pred_label_tmp = np.where(y_pred_tmp == 1)[0]
+            # sort를 하는 이유는?
             y_pred_label.append(sorted(y_pred_label_tmp))
             visit_cnt += 1
             med_cnt += len(y_pred_label_tmp)
@@ -105,7 +107,7 @@ def main():
     # DDI 데이터 세트에서 구성된 drug-drug 인접 행렬
     # (med_voc, med_voc)
     ddi_adj = dill.load(open(ddi_adj_path, 'rb'))
-    # [[[환자1의 ICD9_CODE 인덱스], [환자1의 PRO_CODE 인덱스], [환자1의 NDC 인덱스]], [[], [] []], ... ]
+    # [[[방문1의 ICD9_CODE 인덱스], [방문1의 PRO_CODE 인덱스], [방문1의 NDC 인덱스]], [[], [] []], ... ]
     data = dill.load(open(data_path, 'rb'))
     # ICD9_CODE 인덱스, NDC 인덱스, PRO_CODE 인덱스를 담은 object 저장
     voc = dill.load(open(voc_path, 'rb'))
@@ -151,9 +153,9 @@ def main():
             neg_loss_cnt = 0
             for step, input in enumerate(data_train):
                 # SUBJECT_ID가 동일한 환자들 중
-                # input -> [[환자1의 ICD9_CODE 인덱스], [환자1의 PRO_CODE 인덱스], [환자1의 NDC 인덱스]], [[환자2의 ICD9_CODE 인덱스], [환자2의 PRO_CODE 인덱스], [환자2의 NDC 인덱스]], ...]
+                # input -> [[방문1의 ICD9_CODE 인덱스], [방문1의 PRO_CODE 인덱스], [방문1의 NDC 인덱스]], [[방문2의 ICD9_CODE 인덱스], [방문2의 PRO_CODE 인덱스], [방문2의 NDC 인덱스]], ...]
                 for idx, adm in enumerate(input):
-                    # 환자 1, 환자 1,2, 환자 1,2,3, ...
+                    # 방문 1, 방문 1,2, 방문 1,2,3, ...
                     seq_input = input[:idx+1]
                     # NDC 인덱스에는 모두 1 나머지는 0
                     loss1_target = np.zeros((1, voc_size[2]))

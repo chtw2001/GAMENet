@@ -41,5 +41,14 @@ import numpy as np
 # print(loss1_target)
 # print(loss3_target)
 
-ja, prauc, avg_p, avg_r, avg_f1 = [[] for _ in range(5)]
-print(ja, prauc, avg_p, avg_r, avg_f1)
+# ja, prauc, avg_p, avg_r, avg_f1 = [[] for _ in range(5)]
+# print(ja, prauc, avg_p, avg_r, avg_f1)
+
+y_gt = torch.Tensor([1,0,1,0,0,0,1])
+y_pred = torch.Tensor([0,0,0,0,0,1,1])
+target = np.where(y_gt == 1)[0]
+out_list = np.where(y_pred == 1)[0]
+inter = set(out_list) & set(target)
+union = set(out_list) | set(target)
+jaccard_score = 0 if union == 0 else len(inter) / len(union)
+print(jaccard_score)
